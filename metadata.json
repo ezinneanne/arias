@@ -1,0 +1,5 @@
+{
+  "name": "Arias Webapp",
+  "description": "Secure, premium ticketing platform for elite sporting events with integrated CRM, audit logging, and fraud prevention.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
+}
