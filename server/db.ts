@@ -48,14 +48,29 @@ export async function initDB() {
       available_tickets INTEGER NOT NULL
     );
 
+    -- ── New Sales Table for Bank Transfer Workflow ────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS sales (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    event_id TEXT NOT NULL REFERENCES events(id),
+    ticket_quantity INTEGER DEFAULT 1,
+    total_amount REAL NOT NULL,
+    payment_status TEXT DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
+    receipt_url TEXT,                      -- Link to uploaded proof of payment image
+    crm_sync_status BOOLEAN DEFAULT false, -- Flags whether n8n has seen this lead yet
+    ticket_issued BOOLEAN DEFAULT false,   -- Flags if n8n successfully issued the ticket
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
     CREATE TABLE IF NOT EXISTS tickets (
-      id TEXT PRIMARY KEY,
-      event_id TEXT NOT NULL REFERENCES events(id),
-      user_id TEXT NOT NULL REFERENCES users(id),
-      seat TEXT,
-      status TEXT DEFAULT 'active',
-      purchased_at TIMESTAMPTZ DEFAULT NOW()
-    );
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES events(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    sales_id TEXT REFERENCES sales(id),     -- Links ticket back to the parent sale record
+    seat TEXT,
+    status TEXT DEFAULT 'active',
+    purchased_at TIMESTAMPTZ DEFAULT NOW()
+  );
 
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,

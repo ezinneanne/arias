@@ -179,6 +179,45 @@ async function startServer() {
   };
 
   // ── Purchase Ticket ────────────────────────────────────────────────────────
+  // Replace your /api/tickets/purchase route in server.ts
+app.post('/api/tickets/purchase', apiLimiter, authenticateToken, async (req: any, res: any) => {
+  const { eventId, ticketQuantity, receiptUrl } = req.body; // receiptUrl is optional if they upload proof later
+  const qty = parseInt(ticketQuantity || '1');
+
+  try {
+    // 1. Check if event exists and has stock
+    const { rows: eventRows } = await pool.query('SELECT * FROM events WHERE id = $1', [eventId]);
+    const event = eventRows[0];
+
+    if (!event || event.available_tickets < qty) {
+      return res.status(400).json({ error: 'Event sold out or insufficient tickets available.' });
+    }
+
+    // 2. Generate an order and insert into our new sales tracking layout
+    const saleId = `S-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const totalAmount = event.price * qty;
+
+    await pool.query(
+      `INSERT INTO sales (id, user_id, event_id, ticket_quantity, total_amount, payment_status, receipt_url, crm_sync_status, ticket_issued) 
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, false, false)`,
+      [saleId, req.user.id, eventId, qty, totalAmount, receiptUrl || null]
+    );
+
+    await logAction(req.user.id, 'BANK_TRANSFER_INITIATED', { saleId, eventId, totalAmount }, req.ip);
+
+    // Return confirmation payload so your Netlify UI can display payment instructions
+    return res.status(201).json({ 
+      success: true, 
+      saleId, 
+      message: 'Registration logged. Awaiting manual bank transfer verification.' 
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to initialize ticket purchase intent.' });
+  }
+});
+  
+  /*
   app.post('/api/tickets/purchase', apiLimiter, authenticateToken, async (req: any, res: any) => {
     const { eventId } = req.body;
     const client = await pool.connect();
@@ -217,7 +256,7 @@ async function startServer() {
     } finally {
       client.release();
     }
-  });
+  }); */
 
   // ── Admin: Stats ───────────────────────────────────────────────────────────
   app.get('/api/admin/stats', authenticateToken, requireAdmin, async (_req, res) => {
